@@ -37,6 +37,7 @@ import {
   SupervisorMountUsage,
   fetchSupervisorMounts,
   reloadSupervisorMount,
+  supervisorMountDescription,
 } from "../../../data/supervisor/mounts";
 import { showAlertDialog } from "../../../dialogs/generic/show-dialog-box";
 import "../../../layouts/hass-subpage";
@@ -74,7 +75,11 @@ class HaConfigSectionStorage extends LitElement {
       return nothing;
     }
     const validMounts = this._mountsInfo?.mounts.filter((mount) =>
-      [SupervisorMountType.CIFS, SupervisorMountType.NFS].includes(mount.type)
+      [
+        SupervisorMountType.CIFS,
+        SupervisorMountType.DISK,
+        SupervisorMountType.NFS,
+      ].includes(mount.type)
     );
     const isHAOS = this._hostInfo?.features.includes("haos");
     return html`
@@ -193,13 +198,7 @@ class HaConfigSectionStorage extends LitElement {
                               ${mount.name}
                             </span>
                             <span slot="secondary">
-                              ${mount.server}${
-                                mount.port ? `:${mount.port}` : nothing
-                              }${
-                                mount.type === SupervisorMountType.NFS
-                                  ? mount.path
-                                  : `:${mount.share}`
-                              }
+                              ${supervisorMountDescription(mount)}
                             </span>
                             ${
                               mount.state !== SupervisorMountState.ACTIVE
