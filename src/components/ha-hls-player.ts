@@ -18,6 +18,8 @@ type HlsLite = Omit<
   "subtitleTrackController" | "audioTrackController" | "emeController"
 >;
 
+const HIDDEN_CLEANUP_DELAY = 60000;
+
 @customElement("ha-hls-player")
 class HaHLSPlayer extends LitElement {
   @state()
@@ -76,13 +78,22 @@ class HaHLSPlayer extends LitElement {
 
   private static streamCount = 0;
 
+  private _hiddenCleanupTimeout?: number;
+
   private _handleVisibilityChange = () => {
     if (document.pictureInPictureElement) {
       // video is playing in picture-in-picture mode, don't do anything
       return;
     }
     if (document.hidden) {
-      this._cleanUp();
+      this._hiddenCleanupTimeout = window.setTimeout(() => {
+        this._hiddenCleanupTimeout = undefined;
+        this._cleanUp();
+      }, HIDDEN_CLEANUP_DELAY);
+    } else if (this._hiddenCleanupTimeout) {
+      // stream was not cleaned up yet, just cancel the cleanup
+      clearTimeout(this._hiddenCleanupTimeout);
+      this._hiddenCleanupTimeout = undefined;
     } else {
       this._resetError();
       this._startHls();
@@ -105,35 +116,41 @@ class HaHLSPlayer extends LitElement {
       "visibilitychange",
       this._handleVisibilityChange
     );
+    clearTimeout(this._hiddenCleanupTimeout);
+    this._hiddenCleanupTimeout = undefined;
     HaHLSPlayer.streamCount -= 1;
     this._cleanUp();
   }
 
   protected render(): TemplateResult {
     return html`
-      ${this._error
-        ? html`<ha-alert
-            alert-type="error"
-            class=${this._errorIsFatal ? "fatal" : "retry"}
-          >
-            ${this._error}
-          </ha-alert>`
-        : ""}
-      ${!this._errorIsFatal
-        ? html`<video
-            .poster=${this.posterUrl}
-            ?autoplay=${this.autoPlay}
-            .muted=${this.muted}
-            ?playsinline=${this.playsInline}
-            ?controls=${this.controls}
-            @loadeddata=${this._loadedData}
-            style=${styleMap({
-              height: this.aspectRatio == null ? "100%" : "auto",
-              aspectRatio: this.aspectRatio,
-              objectFit: this.fitMode,
-            })}
-          ></video>`
-        : ""}
+      ${
+        this._error
+          ? html`<ha-alert
+              alert-type="error"
+              class=${this._errorIsFatal ? "fatal" : "retry"}
+            >
+              ${this._error}
+            </ha-alert>`
+          : ""
+      }
+      ${
+        !this._errorIsFatal
+          ? html`<video
+              .poster=${this.posterUrl}
+              ?autoplay=${this.autoPlay}
+              .muted=${this.muted}
+              ?playsinline=${this.playsInline}
+              ?controls=${this.controls}
+              @loadeddata=${this._loadedData}
+              style=${styleMap({
+                height: this.aspectRatio == null ? "100%" : "auto",
+                aspectRatio: this.aspectRatio,
+                objectFit: this.fitMode,
+              })}
+            ></video>`
+          : ""
+      }
     `;
   }
 

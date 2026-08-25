@@ -90,13 +90,15 @@ export class HaVisibilityStatus extends LitElement {
   public render() {
     return html`
       <ha-alert
-        .alertType=${this.state === "visible"
-          ? "success"
-          : this.state === "hidden"
-            ? "warning"
-            : this.state === "unknown"
-              ? "info"
-              : "error"}
+        .alertType=${
+          this.state === "visible"
+            ? "success"
+            : this.state === "hidden"
+              ? "warning"
+              : this.state === "unknown"
+                ? "info"
+                : "error"
+        }
       >
         <ha-svg-icon slot="icon" .path=${STATE_ICONS[this.state]}></ha-svg-icon>
         <div class="headline">

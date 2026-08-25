@@ -7,7 +7,6 @@ import memoizeOne from "memoize-one";
 import { computeEntityNameList } from "../../../../common/entity/compute_entity_name_display";
 import { computeStateName } from "../../../../common/entity/compute_state_name";
 import { fireEvent } from "../../../../common/dom/fire_event";
-import { computeRTL } from "../../../../common/util/compute_rtl";
 import "../../../../components/entity/state-badge";
 import "../../../../components/ha-combo-box-item";
 import "../../../../components/ha-generic-picker";
@@ -15,6 +14,7 @@ import type { PickerComboBoxItem } from "../../../../components/ha-picker-combo-
 import type { PickerValueRenderer } from "../../../../components/ha-picker-field";
 import "../../../../components/ha-svg-icon";
 import type { DeviceConsumptionEnergyPreference } from "../../../../data/energy";
+import { computeEnergyLabel } from "../../../../data/energy";
 import { domainToName } from "../../../../data/integration";
 import {
   getStatisticLabel,
@@ -73,20 +73,18 @@ export class HaEnergyUpstreamDevicePicker extends LitElement {
         this.hass.floors
       );
 
-      const isRTL = computeRTL(
-        this.hass.language,
-        this.hass.translationMetadata.translations
-      );
-
       const friendlyName = computeStateName(stateObj); // Keep this for search
-      const secondary = [areaName, entityName ? deviceName : undefined]
-        .filter(Boolean)
-        .join(isRTL ? " ◂ " : " ▸ ");
 
       return {
         id: statisticId,
-        primary: name || entityName || deviceName || statisticId,
-        secondary,
+        // Match the label shown in the device list and the graphs.
+        primary: computeEnergyLabel(
+          this.hass,
+          statisticId,
+          this.statsMetadata?.[statisticId],
+          name
+        ),
+        secondary: areaName,
         stateObj,
         search_labels: {
           entityName: entityName || null,
@@ -157,27 +155,31 @@ export class HaEnergyUpstreamDevicePicker extends LitElement {
     );
 
   private _renderItem = (item: UpstreamDeviceComboBoxItem) => html`
-    ${item.stateObj
-      ? html`
-          <state-badge
-            slot="start"
-            .stateObj=${item.stateObj}
-            .hass=${this.hass}
-          ></state-badge>
-        `
-      : item.icon_path
+    ${
+      item.stateObj
         ? html`
-            <ha-svg-icon
-              style="margin: 0 4px"
+            <state-badge
               slot="start"
-              .path=${item.icon_path}
-            ></ha-svg-icon>
+              .stateObj=${item.stateObj}
+              .hass=${this.hass}
+            ></state-badge>
           `
-        : nothing}
+        : item.icon_path
+          ? html`
+              <ha-svg-icon
+                style="margin: 0 4px"
+                slot="start"
+                .path=${item.icon_path}
+              ></ha-svg-icon>
+            `
+          : nothing
+    }
     <span slot="headline">${item.primary}</span>
-    ${item.secondary
-      ? html`<span slot="supporting-text">${item.secondary}</span>`
-      : nothing}
+    ${
+      item.secondary
+        ? html`<span slot="supporting-text">${item.secondary}</span>`
+        : nothing
+    }
   `;
 
   private _rowRenderer: RenderItemFunction<UpstreamDeviceComboBoxItem> = (

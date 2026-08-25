@@ -7,6 +7,7 @@ import { createDurationData } from "../../../../../common/datetime/create_durati
 import { durationDataToSeconds } from "../../../../../common/datetime/duration_to_seconds";
 import { fireEvent } from "../../../../../common/dom/fire_event";
 import { stopPropagation } from "../../../../../common/dom/stop_propagation";
+import { getSelectorFallbackValue } from "../../../../../components/ha-form/get-selector-fallback-value";
 import "../../../../../components/ha-checkbox";
 import "../../../../../components/ha-selector/ha-selector";
 import "../../../../../components/ha-settings-row";
@@ -83,8 +84,7 @@ export class HaPlatformCondition extends LitElement {
       changedProperties.has("description")
     ) {
       const previousCondition = changedProperties.get("condition") as
-        | undefined
-        | this["condition"];
+        undefined | this["condition"];
       if (
         changedProperties.has("description") ||
         previousCondition?.target !== this.condition?.target ||
@@ -98,8 +98,7 @@ export class HaPlatformCondition extends LitElement {
       return;
     }
     const oldValue = changedProperties.get("condition") as
-      | undefined
-      | this["condition"];
+      undefined | this["condition"];
 
     // Fetch the manifest if we have a condition selected and the condition domain changed.
     // If no condition is selected, clear the manifest.
@@ -187,68 +186,67 @@ export class HaPlatformCondition extends LitElement {
       )
     );
 
+    const documentationLink = this._manifest?.is_built_in
+      ? documentationUrl(this.hass, `/conditions/${this.condition.condition}`)
+      : this._manifest?.documentation;
+
     return html`
       <div class="description">
         ${description ? html`<p>${description}</p>` : nothing}
-        ${this._manifest
-          ? html`<a
-              href=${this._manifest.is_built_in
-                ? documentationUrl(
-                    this.hass,
-                    `/integrations/${this._manifest.domain}`
-                  )
-                : this._manifest.documentation}
-              title=${this.hass.localize(
-                "ui.components.service-control.integration_doc"
-              )}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ha-icon-button
-                .path=${mdiHelpCircleOutline}
-                class="help-icon"
-                .label=${this.hass.localize(
+        ${
+          documentationLink
+            ? html`<a
+                href=${documentationLink}
+                title=${this.hass.localize(
                   "ui.components.service-control.integration_doc"
                 )}
-              ></ha-icon-button>
-            </a>`
-          : nothing}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <ha-icon-button
+                  .path=${mdiHelpCircleOutline}
+                  class="help-icon"
+                  .label=${this.hass.localize(
+                    "ui.components.service-control.integration_doc"
+                  )}
+                ></ha-icon-button>
+              </a>`
+            : nothing
+        }
       </div>
-      ${conditionDesc && "target" in conditionDesc
-        ? html`<ha-settings-row narrow>
-            <span slot="heading"
-              >${this.hass.localize(
-                "ui.components.service-control.target"
-              )}</span
-            >
-            <ha-selector
+      ${
+        conditionDesc && "target" in conditionDesc
+          ? html`<ha-selector
+              class="target-selector"
               .hass=${this.hass}
               .selector=${this._targetSelector(conditionDesc.target)}
               .disabled=${this.disabled}
               @value-changed=${this._targetChanged}
               .value=${this.condition?.target}
-            ></ha-selector
-          ></ha-settings-row>`
-        : nothing}
-      ${shouldRenderDataYaml
-        ? html`<ha-yaml-editor
-            .label=${this.hass.localize(
-              "ui.components.service-control.action_data"
-            )}
-            .name=${"data"}
-            .readOnly=${this.disabled}
-            .defaultValue=${this.condition?.options}
-            @value-changed=${this._dataChanged}
-          ></ha-yaml-editor>`
-        : Object.entries(conditionDesc.fields).map(([fieldName, dataField]) =>
-            this._renderField(
-              fieldName,
-              dataField,
-              hasOptional,
-              domain,
-              conditionName
+            ></ha-selector>`
+          : nothing
+      }
+      ${
+        shouldRenderDataYaml
+          ? html`<ha-yaml-editor
+              .label=${this.hass.localize(
+                "ui.components.service-control.action_data"
+              )}
+              .name=${"data"}
+              .readOnly=${this.disabled}
+              .defaultValue=${this.condition?.options}
+              @value-changed=${this._dataChanged}
+            ></ha-yaml-editor>`
+          : Object.entries(conditionDesc.fields).map(([fieldName, dataField]) =>
+              this._renderField(
+                fieldName,
+                dataField,
+                hasOptional,
+                domain,
+                conditionName
+              )
             )
-          )}
+      }
     `;
   }
 
@@ -287,49 +285,61 @@ export class HaPlatformCondition extends LitElement {
     );
 
     return html`<ha-settings-row narrow>
-      ${!showOptional
-        ? hasOptional
-          ? html`<div slot="prefix" class="checkbox-spacer"></div>`
-          : nothing
-        : html`<ha-checkbox
-            .key=${fieldName}
-            .checked=${this._checkedKeys.has(fieldName) ||
-            (!!this.condition?.options &&
-              this.condition.options[fieldName] !== undefined)}
-            .disabled=${this.disabled}
-            @change=${this._checkboxChanged}
-            slot="prefix"
-          ></ha-checkbox>`}
+      ${
+        !showOptional
+          ? hasOptional
+            ? html`<div slot="prefix" class="checkbox-spacer"></div>`
+            : nothing
+          : html`<ha-checkbox
+              .key=${fieldName}
+              .checked=${
+                this._checkedKeys.has(fieldName) ||
+                (!!this.condition?.options &&
+                  this.condition.options[fieldName] !== undefined)
+              }
+              .disabled=${this.disabled}
+              @change=${this._checkboxChanged}
+              slot="prefix"
+            ></ha-checkbox>`
+      }
       <span
         slot="heading"
         class=${showOptional ? "clickable" : ""}
         @click=${showOptional ? this._toggleCheckbox : undefined}
-        >${this.hass.localize(
-          `component.${domain}.conditions.${conditionName}.fields.${fieldName}.name`
-        ) || fieldName}${this._renderForPrimingInfo(fieldName)}</span
+        >${
+          this.hass.localize(
+            `component.${domain}.conditions.${conditionName}.fields.${fieldName}.name`
+          ) || fieldName
+        }${this._renderForPrimingInfo(fieldName)}</span
       >
-      ${description
-        ? html`<span
-            class=${showOptional ? "clickable" : ""}
-            @click=${showOptional ? this._toggleCheckbox : undefined}
-            slot="description"
-            >${description}</span
-          >`
-        : nothing}
+      ${
+        description
+          ? html`<span
+              class=${showOptional ? "clickable" : ""}
+              @click=${showOptional ? this._toggleCheckbox : undefined}
+              slot="description"
+              >${description}</span
+            >`
+          : nothing
+      }
       <ha-selector
-        .disabled=${this.disabled ||
-        (showOptional &&
-          !this._checkedKeys.has(fieldName) &&
-          (!this.condition?.options ||
-            this.condition.options[fieldName] === undefined))}
+        .disabled=${
+          this.disabled ||
+          (showOptional &&
+            !this._checkedKeys.has(fieldName) &&
+            (!this.condition?.options ||
+              this.condition.options[fieldName] === undefined))
+        }
         .hass=${this.hass}
         .selector=${selector}
         .context=${this._generateContext(dataField)}
         .key=${fieldName}
         @value-changed=${this._dataChanged}
-        .value=${this.condition?.options
-          ? this.condition.options[fieldName]
-          : undefined}
+        .value=${
+          this.condition?.options
+            ? this.condition.options[fieldName]
+            : undefined
+        }
         .placeholder=${dataField.default}
         .localizeValue=${this._localizeValueCallback}
         .required=${dataField.required}
@@ -420,20 +430,8 @@ export class HaPlatformCondition extends LitElement {
         Object.entries(this.description).find(([k, _value]) => k === key)?.[1];
       let defaultValue = field?.default;
 
-      if (
-        defaultValue == null &&
-        field?.selector &&
-        "constant" in field.selector
-      ) {
-        defaultValue = field.selector.constant?.value;
-      }
-
-      if (
-        defaultValue == null &&
-        field?.selector &&
-        "boolean" in field.selector
-      ) {
-        defaultValue = false;
+      if (defaultValue == null && field?.selector) {
+        defaultValue = getSelectorFallbackValue(field.selector);
       }
 
       if (defaultValue != null) {
@@ -651,6 +649,14 @@ export class HaPlatformCondition extends LitElement {
     ha-yaml-editor {
       display: block;
       margin: 0 var(--ha-space-4);
+    }
+    ha-selector.target-selector {
+      display: block;
+      padding: var(--ha-space-2) var(--ha-space-4);
+      border-top: var(
+        --service-control-items-border-top,
+        1px solid var(--divider-color)
+      );
     }
     ha-yaml-editor {
       padding: var(--ha-space-4) 0;

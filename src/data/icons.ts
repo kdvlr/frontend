@@ -241,11 +241,7 @@ type ConditionIcons = Record<
 >;
 
 export type IconCategory =
-  | "entity"
-  | "entity_component"
-  | "services"
-  | "triggers"
-  | "conditions";
+  "entity" | "entity_component" | "services" | "triggers" | "conditions";
 
 interface CategoryType {
   entity: PlatformIcons;
@@ -329,35 +325,34 @@ export const getCategoryIcons = async <
   domain?: string,
   force = false
 ): Promise<CategoryType[T] | Record<string, CategoryType[T]> | undefined> => {
+  const categoryResources = resources[category];
   if (!domain) {
-    if (!force && resources[category].all) {
-      return resources[category].all as Promise<
-        Record<string, CategoryType[T]>
-      >;
+    if (!force && categoryResources.all) {
+      return categoryResources.all as Promise<Record<string, CategoryType[T]>>;
     }
-    resources[category].all = getHassIcons(connection, category).then((res) => {
-      resources[category].domains = res.resources as any;
+    categoryResources.all = getHassIcons(connection, category).then((res) => {
+      categoryResources.domains = res.resources as any;
       return res?.resources as Record<string, CategoryType[T]>;
     }) as any;
-    return resources[category].all as Promise<Record<string, CategoryType[T]>>;
+    return categoryResources.all as Promise<Record<string, CategoryType[T]>>;
   }
-  if (!force && domain in resources[category].domains) {
-    return resources[category].domains[domain] as Promise<CategoryType[T]>;
+  if (!force && domain in categoryResources.domains) {
+    return categoryResources.domains[domain] as Promise<CategoryType[T]>;
   }
-  if (resources[category].all && !force) {
-    await resources[category].all;
-    if (domain in resources[category].domains) {
-      return resources[category].domains[domain] as Promise<CategoryType[T]>;
+  if (categoryResources.all && !force) {
+    await categoryResources.all;
+    if (domain in categoryResources.domains) {
+      return categoryResources.domains[domain] as Promise<CategoryType[T]>;
     }
   }
   if (!isComponentLoaded(hassConfig, domain)) {
     return undefined;
   }
   const result = getHassIcons(connection, category, domain);
-  resources[category].domains[domain] = result.then(
+  categoryResources.domains[domain] = result.then(
     (res) => res?.resources[domain]
   ) as any;
-  return resources[category].domains[domain] as Promise<CategoryType[T]>;
+  return categoryResources.domains[domain] as Promise<CategoryType[T]>;
 };
 
 export const getServiceIcons = async (
@@ -463,8 +458,7 @@ export const entityIcon = async (
   state?: string
 ) => {
   const entry = entities?.[stateObj.entity_id] as
-    | EntityRegistryDisplayEntry
-    | undefined;
+    EntityRegistryDisplayEntry | undefined;
   if (entry?.icon) {
     return entry.icon;
   }
@@ -559,8 +553,7 @@ export const attributeIcon = async (
   const domain = computeStateDomain(state);
   const deviceClass = state.attributes.device_class;
   const entity = entities[state.entity_id] as
-    | EntityRegistryDisplayEntry
-    | undefined;
+    EntityRegistryDisplayEntry | undefined;
   const platform = entity?.platform;
   const translation_key = entity?.translation_key;
   const value =

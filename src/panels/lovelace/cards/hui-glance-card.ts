@@ -26,40 +26,17 @@ import { findEntities } from "../common/find-entities";
 import { handleAction } from "../common/handle-action";
 import { hasAction, hasAnyAction } from "../common/has-action";
 import { hasConfigOrEntitiesChanged } from "../common/has-changed";
+import { applyDefaultColor } from "../common/entity-color-config";
 import { processConfigEntities } from "../common/process-config-entities";
 import "../components/hui-timestamp-display";
 import { createEntityNotFoundWarning } from "../components/hui-warning";
 import "../components/hui-warning-element";
 import type { LovelaceCard, LovelaceCardEditor } from "../types";
+import { migrateGlanceCardConfig } from "./migrate-card-config";
 import type { GlanceCardConfig, GlanceConfigEntity } from "./types";
 import { TIMESTAMP_STATE_DOMAINS } from "../../../common/const";
 
-export const migrateGlanceCardConfig = (
-  config: GlanceCardConfig
-): GlanceCardConfig => {
-  let changed = false;
-  const newEntities = config.entities?.map((e) => {
-    if (typeof e !== "object") {
-      return e;
-    }
-    if (!("format" in e)) {
-      return e;
-    }
-    changed = true;
-    const { format, ...rest } = e;
-    return {
-      ...rest,
-      time_format: rest.time_format ?? format,
-    };
-  });
-  if (!changed) {
-    return config;
-  }
-  return {
-    ...config,
-    entities: newEntities as (GlanceConfigEntity | string)[],
-  };
-};
+export { migrateGlanceCardConfig };
 
 @customElement("hui-glance-card")
 export class HuiGlanceCard extends LitElement implements LovelaceCard {
@@ -111,14 +88,19 @@ export class HuiGlanceCard extends LitElement implements LovelaceCard {
       show_name: true,
       show_state: true,
       show_icon: true,
-      state_color: true,
+      color: "state",
       ...migratedConfig,
     };
+    const cardColor = this._config.color;
     const entities = processConfigEntities(migratedConfig.entities).map(
-      (entityConf) => ({
-        hold_action: { action: "more-info" } as MoreInfoActionConfig,
-        ...entityConf,
-      })
+      (entityConf) =>
+        applyDefaultColor(
+          {
+            hold_action: { action: "more-info" } as MoreInfoActionConfig,
+            ...entityConf,
+          },
+          cardColor
+        )
     );
 
     for (const entity of entities) {
@@ -176,8 +158,7 @@ export class HuiGlanceCard extends LitElement implements LovelaceCard {
 
     const oldHass = changedProps.get("hass") as HomeAssistant | undefined;
     const oldConfig = changedProps.get("_config") as
-      | GlanceCardConfig
-      | undefined;
+      GlanceCardConfig | undefined;
 
     if (
       !oldHass ||
@@ -266,21 +247,25 @@ export class HuiGlanceCard extends LitElement implements LovelaceCard {
 
     if (!stateObj) {
       return html`<div class="entity warning">
-        ${this._config!.show_name
-          ? html`
-              <div class="name">
-                ${createEntityNotFoundWarning(this.hass!, entityConf.entity)}
-              </div>
-            `
-          : ""}
-        ${this._config!.show_icon
-          ? html` <hui-warning-element
-              .label=${createEntityNotFoundWarning(
-                this.hass!,
-                entityConf.entity
-              )}
-            ></hui-warning-element>`
-          : ""}
+        ${
+          this._config!.show_name
+            ? html`
+                <div class="name">
+                  ${createEntityNotFoundWarning(this.hass!, entityConf.entity)}
+                </div>
+              `
+            : ""
+        }
+        ${
+          this._config!.show_icon
+            ? html` <hui-warning-element
+                .label=${createEntityNotFoundWarning(
+                  this.hass!,
+                  entityConf.entity
+                )}
+              ></hui-warning-element>`
+            : ""
+        }
         <div>${this._config!.show_state ? entityConf.entity : ""}</div>
       </div>`;
     }
@@ -303,53 +288,62 @@ export class HuiGlanceCard extends LitElement implements LovelaceCard {
             : undefined
         )}
       >
-        ${this._config!.show_name
-          ? html` <div class="name" .title=${name}>${name}</div> `
-          : ""}
-        ${this._config!.show_icon
-          ? html`
-              <state-badge
-                .stateObj=${stateObj}
-                .overrideIcon=${entityConf.icon}
-                .overrideImage=${entityConf.image}
-                .stateColor=${entityConf.state_color ??
-                this._config!.state_color}
-              ></state-badge>
-            `
-          : ""}
-        ${this._config!.show_state && entityConf.show_state !== false
-          ? html`
-              <div>
-                ${(TIMESTAMP_STATE_DOMAINS.has(domain) ||
-                  (domain === "sensor" &&
-                    SENSOR_TIMESTAMP_DEVICE_CLASSES.includes(
-                      stateObj.attributes.device_class
-                    ))) &&
-                stateObj.state !== UNAVAILABLE &&
-                stateObj.state !== UNKNOWN
-                  ? html`
-                      <hui-timestamp-display
-                        .hass=${this.hass}
-                        .ts=${new Date(stateObj.state)}
-                        .format=${entityConf.time_format ??
-                        (stateObj.attributes.device_class ===
-                        SENSOR_DEVICE_CLASS_UPTIME
-                          ? "total"
-                          : undefined)}
-                        capitalize
-                      ></hui-timestamp-display>
-                    `
-                  : entityConf.show_last_changed
-                    ? html`
-                        <ha-relative-time
-                          .datetime=${stateObj.last_changed}
-                          capitalize
-                        ></ha-relative-time>
-                      `
-                    : this.hass!.formatEntityState(stateObj)}
-              </div>
-            `
-          : ""}
+        ${
+          this._config!.show_name
+            ? html` <div class="name" .title=${name}>${name}</div> `
+            : ""
+        }
+        ${
+          this._config!.show_icon
+            ? html`
+                <state-badge
+                  .stateObj=${stateObj}
+                  .overrideIcon=${entityConf.icon}
+                  .overrideImage=${entityConf.image}
+                  .color=${entityConf.color}
+                ></state-badge>
+              `
+            : ""
+        }
+        ${
+          this._config!.show_state && entityConf.show_state !== false
+            ? html`
+                <div>
+                  ${
+                    (TIMESTAMP_STATE_DOMAINS.has(domain) ||
+                      (domain === "sensor" &&
+                        SENSOR_TIMESTAMP_DEVICE_CLASSES.includes(
+                          stateObj.attributes.device_class
+                        ))) &&
+                    stateObj.state !== UNAVAILABLE &&
+                    stateObj.state !== UNKNOWN
+                      ? html`
+                          <hui-timestamp-display
+                            .hass=${this.hass}
+                            .ts=${new Date(stateObj.state)}
+                            .format=${
+                              entityConf.time_format ??
+                              (stateObj.attributes.device_class ===
+                              SENSOR_DEVICE_CLASS_UPTIME
+                                ? "total"
+                                : undefined)
+                            }
+                            capitalize
+                          ></hui-timestamp-display>
+                        `
+                      : entityConf.show_last_changed
+                        ? html`
+                            <ha-relative-time
+                              .datetime=${stateObj.last_changed}
+                              capitalize
+                            ></ha-relative-time>
+                          `
+                        : this.hass!.formatEntityState(stateObj)
+                  }
+                </div>
+              `
+            : ""
+        }
       </div>
     `;
   }
